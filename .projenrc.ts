@@ -1,12 +1,38 @@
 import { typescript } from 'projen';
+
 const project = new typescript.TypeScriptProject({
+  authorName: 'Arctarus Limited',
+  authorOrganization: true,
+  authorEmail: 'info@arctarus.co.uk',
+  authorUrl: 'https://www.arctarus.co.uk',
+
   defaultReleaseBranch: 'main',
-  name: 'architect',
+  name: '@akim/architect',
+  license: 'MIT',
+  repository: 'https://github.com/ArctarusLimited/architect.git',
+
   projenrcTs: true,
 
-  // deps: [],                /* Runtime dependencies of this module. */
-  // description: undefined,  /* The description is just a string that helps people understand the purpose of the package. */
-  // devDeps: [],             /* Build dependencies for this module. */
-  // packageName: undefined,  /* The "name" in package.json. */
+  // dependencies
+  deps: [
+    'lodash',
+    'semver',
+    'uuid',
+    'reflect-metadata',
+    'fast-safe-stringify',
+    'js-yaml',
+  ],
+
+  devDeps: [
+    '@types/node',
+    '@types/lodash',
+    '@types/uuid',
+    '@types/semver',
+    '@types/js-yaml'
+  ],
+
+  // disable tests for now
+  jest: false,
 });
+
 project.synth();
