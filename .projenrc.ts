@@ -15,7 +15,9 @@ const project = new typescript.TypeScriptProject({
 
   // dependencies
   deps: [
+    'appdirsjs',
     'lodash',
+    'object-hash',
     'semver',
     'uuid',
     'reflect-metadata',
@@ -25,10 +27,11 @@ const project = new typescript.TypeScriptProject({
 
   devDeps: [
     '@types/node',
+    '@types/object-hash',
     '@types/lodash',
     '@types/uuid',
     '@types/semver',
-    '@types/js-yaml'
+    '@types/js-yaml',
   ],
 
   // disable tests for now

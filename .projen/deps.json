@@ -14,6 +14,10 @@
       "type": "build"
     },
     {
+      "name": "@types/object-hash",
+      "type": "build"
+    },
+    {
       "name": "@types/semver",
       "type": "build"
     },
@@ -85,11 +89,23 @@
       "type": "override"
     },
     {
+      "name": "appdirsjs",
+      "type": "runtime"
+    },
+    {
+      "name": "fast-safe-stringify",
+      "type": "runtime"
+    },
+    {
       "name": "js-yaml",
       "type": "runtime"
     },
     {
       "name": "lodash",
+      "type": "runtime"
+    },
+    {
+      "name": "object-hash",
       "type": "runtime"
     },
     {
