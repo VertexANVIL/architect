@@ -1,5 +1,9 @@
+import 'reflect-metadata';
 import _ from 'lodash';
+
+import { Capability } from './capability';
 import { Target } from './target';
+import { constructor } from './utils';
 
 /**
  * Base unit of resource management that produces objects
@@ -12,25 +16,64 @@ export abstract class Component {
     this.target = target;
   };
 
-  /**
-     * Returns the default name of this component.
-     */
-  public abstract get name(): string;
-
-  // public get urn(): string {
-  //     const suffix = Reflect.getMetadata("uuid", this).slice(0, 7);
-  //     return `${this.name}-${suffix}`
-  // };
+  public get capabilities(): Capability<any>[] {
+    return [];
+  };
 
   /**
-     * Constructs this component, returning the object that should be merged into the global tree.
-     */
+   * Returns the component types required by this component
+   */
+  public get requirements(): IComponentMatcher[] {
+    return [];
+  };
+
+  /**
+   * Constructs this component, returning the object that should be merged into the global tree.
+   */
   public abstract build(): Promise<any>;
 
   /**
-     * Passthrough function that performs postprocessing on this component's build outputs
-     */
+   * Passthrough function that performs postprocessing on this component's build outputs
+   */
   public postBuild(data: any): any {
     return data;
   };
+
+  /**
+   * Returns this component's UUID
+   */
+  public get uuid(): string {
+    return Reflect.getMetadata('uuid', this.constructor);
+  };
+
+  /**
+   * Returns a prettified identifier of this component
+   */
+  public toString(): string {
+    return `${this.constructor.name}-${this.uuid.slice(0, 7)}`;
+  };
+};
+
+/**
+ * Defines an object that matches one or more components according to a defined ruleset
+ */
+export interface IComponentMatcher {
+  match(input: Component): boolean;
+  toString(): string;
+};
+
+export class ComponentMatcher implements IComponentMatcher {
+  private readonly token: constructor<any>;
+  constructor(token: constructor<any>) {
+    this.token = token;
+  };
+
+  match(input: Component): boolean {
+    const uuid = Reflect.getMetadata('uuid', this.token);
+    return input.uuid === uuid;
+  };
+
+  toString(): string {
+    return `${this.constructor.name}(${this.token.name})`;
+  }
 };

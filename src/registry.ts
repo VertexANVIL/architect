@@ -20,9 +20,9 @@ export class Registry {
   };
 
   /**
-     * Registers an instance of T with the options provided.
-     * If no object is passed, a new instance of T will be instantiated and used.
-     */
+    * Registers an instance of T with the options provided.
+    * If no object is passed, a new instance of T will be instantiated and used.
+    */
   public register<T>(token: constructor<T>, instance?: T) {
     if (instance == null) {
       instance = new token(...this.args);
