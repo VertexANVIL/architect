@@ -9,11 +9,15 @@ import { constructor } from './utils';
  * Base unit of resource management that produces objects
  * to be merged into the resultant configuration tree
  */
-export abstract class Component {
-  protected target: Target;
+export abstract class Component<TArgs = any> {
+  protected readonly target: Target;
+  protected readonly name?: string;
+  protected readonly args?: TArgs;
 
-  constructor(target: Target) {
+  constructor(target: Target, name?: string, args?: TArgs) {
     this.target = target;
+    this.name = name;
+    this.args = args;
   };
 
   public get capabilities(): Capability<any>[] {
