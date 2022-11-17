@@ -37,6 +37,11 @@ export class Target {
       });
     });
 
+    // Execute per-component configuration async
+    await Promise.all(values.map(
+      async (cur) => cur.configure(),
+    ));
+
     // Execute component build async
     const results = await Promise.all(values.map(
       async (cur): Promise<any> => {
@@ -59,10 +64,10 @@ export class Target {
   };
 
   /**
-   * Requests the extension identified by the specified token
+   * Requests the component identified by the specified token
    */
-  public extension<T>(token: constructor<T>): T {
-    return this.extensions.request(token);
+  public component<T>(token: constructor<T>): T {
+    return this.components.request(token);
   };
 
   /**
@@ -70,5 +75,12 @@ export class Target {
    */
   public fact<T>(token: constructor<T>): T {
     return this.facts.request(token);
+  };
+
+  /**
+   * Requests the extension identified by the specified token
+   */
+  public extension<T>(token: constructor<T>): T {
+    return this.extensions.request(token);
   };
 };

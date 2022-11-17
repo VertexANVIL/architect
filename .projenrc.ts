@@ -21,6 +21,8 @@ const project = new typescript.TypeScriptProject({
     'semver',
     'uuid',
     'reflect-metadata',
+    'tst-reflect',
+    'tst-reflect-transformer',
     'fast-safe-stringify',
     'js-yaml',
   ],
@@ -33,9 +35,6 @@ const project = new typescript.TypeScriptProject({
     '@types/semver',
     '@types/js-yaml',
   ],
-
-  // disable tests for now
-  jest: false,
 });
 
 project.synth();

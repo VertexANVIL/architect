@@ -1,15 +1,5 @@
-import * as crypto from 'crypto';
-
-import appDirs from 'appdirsjs';
 import _ from 'lodash';
-import objectHash from 'object-hash';
-
-/**
- * Constructor type, ported from tsyringe
- */
-export type constructor<T> = {
-  new (...args: any[]): T;
-};
+import { constructor } from './types';
 
 /**
  * Returns true when type of `value` is `object` and is not `null`, `undefined` or
@@ -64,25 +54,39 @@ export function recursiveMerge(object: any, source: any): any {
   return _.mergeWith(object, source, customizer);
 };
 
+/**
+ * Recursively merges an array of values
+ */
+export function recursiveMergeThese<T>(source: T[]): T {
+  return source.reduce<T>((prev, cur) => {
+    if (prev === undefined) return cur;
+    return recursiveMerge(prev, cur);
+  }, undefined as any);
+};
+
 export function notEmpty<TValue>(value: TValue | null | undefined): value is TValue {
   if (value === null || value === undefined) return false;
-  /* tslint:disable:no-unused-variable */
-  const testDummy: TValue = value;
   return true;
 };
 
 /**
- * Returns the composite hash of all objects specified by the parameter.
- *
- * @public
+ * Variant of {Record<string, T>} that automatically constructs an instance of its child if it does not exist
  */
-export function compositeHash(objects: any[]): string {
-  const hash = crypto.createHash('md5');
-  objects.forEach(object => hash.update(objectHash(object)));
+export class AutoRecord {
+  public static new<T>(value: constructor<T>): Record<string, T> {
+    const handler = {
+      get(target: any, prop: string, _receiver: any): any {
+        if (prop in target) {
+          return target.prop;
+        };
 
-  return hash.digest('hex');
+        const instance = new value();
+        target[prop] = instance;
+
+        return instance;
+      },
+    };
+
+    return new Proxy({}, handler);
+  };
 };
-
-export const appdir = appDirs({
-  appName: 'architect',
-});

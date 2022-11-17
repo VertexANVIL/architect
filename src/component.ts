@@ -3,21 +3,27 @@ import _ from 'lodash';
 
 import { Capability } from './capability';
 import { Target } from './target';
-import { constructor } from './utils';
+import { constructor, Lazy, LazyTree } from './utils';
 
 /**
  * Base unit of resource management that produces objects
  * to be merged into the resultant configuration tree
  */
-export abstract class Component<TArgs = any> {
+export abstract class Component<TArgs extends object = any> {
   protected readonly target: Target;
   protected readonly name?: string;
-  protected readonly args?: TArgs;
+  public props: LazyTree<TArgs>;
 
-  constructor(target: Target, name?: string, args?: TArgs) {
+  constructor(target: Target, name?: string, props?: TArgs) {
     this.target = target;
     this.name = name;
-    this.args = args;
+
+    // hacky way to leave this defaultable
+    if (props === undefined) {
+      props = {} as TArgs;
+    };
+
+    this.props = Lazy.from(props);
   };
 
   public get capabilities(): Capability<any>[] {
@@ -25,11 +31,16 @@ export abstract class Component<TArgs = any> {
   };
 
   /**
-   * Returns the component types required by this component
+   * Returns the component types required by nbbthis component
    */
   public get requirements(): IComponentMatcher[] {
     return [];
   };
+
+  /**
+   * Invoked by the target during the build phase. Sets lazy properties on other components.
+   */
+  public async configure() {};
 
   /**
    * Constructs this component, returning the object that should be merged into the global tree.
