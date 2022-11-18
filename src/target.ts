@@ -4,6 +4,10 @@ import { Component } from './component';
 import { Registry } from './registry';
 import { constructor, recursiveMerge } from './utils';
 
+export interface TargetResolveParams {
+  evaluateRequirements?: boolean;
+};
+
 export abstract class BaseFact<T> {
   public readonly instance: T;
 
@@ -24,18 +28,20 @@ export class Target {
   /**
     * Invokes a build operation on all components, passing our facts
     */
-  public async resolve(): Promise<any> {
+  public async resolve(params: TargetResolveParams = {}): Promise<any> {
     const values: Component[] = Object.values(this.components.data);
 
     // Ensure component inter-requirements are met
-    values.forEach(c => {
-      c.requirements.forEach(r => {
-        const matches = values.filter(d => r.match(d));
-        if (matches.length <= 0) {
-          throw Error(`Component ${c.toString()}\nMatcher ${r.toString()} failed`);
-        };
+    if (params.evaluateRequirements !== false) {
+      values.forEach(c => {
+        c.requirements.forEach(r => {
+          const matches = values.filter(d => r.match(d));
+          if (matches.length <= 0) {
+            throw Error(`Component ${c.toString()}\nMatcher ${r.toString()} failed`);
+          };
+        });
       });
-    });
+    };
 
     // Execute per-component configuration async
     await Promise.all(values.map(

@@ -3,20 +3,30 @@ import _ from 'lodash';
 
 import { Capability } from './capability';
 import { Target } from './target';
-import { constructor, Lazy, LazyTree } from './utils';
+import { constructor, Lazy, LazyTree, Named, setNamed } from './utils';
 
 /**
  * Base unit of resource management that produces objects
  * to be merged into the resultant configuration tree
  */
-export abstract class Component<TArgs extends object = any> {
+export abstract class Component<TArgs extends object = any> implements Named {
   protected readonly target: Target;
-  protected readonly name?: string;
+  public readonly name: string;
   public props: LazyTree<TArgs>;
 
   constructor(target: Target, name?: string, props?: TArgs) {
+    if (!Reflect.hasMetadata('name', this.constructor) || !Reflect.hasMetadata('uuid', this.constructor)) {
+      throw Error(`${this.constructor.name}: the name and uuid metadata attributes must be set`);
+    };
+
     this.target = target;
-    this.name = name;
+
+    // default the name to our metadata attribute
+    if (name !== undefined) {
+      this.name = name;
+    } else {
+      this.name = Reflect.getMetadata('name', this.constructor);
+    };
 
     // hacky way to leave this defaultable
     if (props === undefined) {
@@ -24,6 +34,9 @@ export abstract class Component<TArgs extends object = any> {
     };
 
     this.props = Lazy.from(props);
+
+    // Component is a Named
+    setNamed(this);
   };
 
   public get capabilities(): Capability<any>[] {
@@ -65,7 +78,9 @@ export abstract class Component<TArgs extends object = any> {
    * Returns a prettified identifier of this component
    */
   public toString(): string {
-    return `${this.constructor.name}-${this.uuid.slice(0, 7)}`;
+    let str = `${this.constructor.name}-${this.uuid.slice(0, 7)}`;
+    if (this.name) str += `@${this.name}`;
+    return str;
   };
 };
 
