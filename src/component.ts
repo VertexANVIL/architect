@@ -9,7 +9,7 @@ import { constructor, Lazy, LazyTree, Named, setNamed } from './utils';
  * Base unit of resource management that produces objects
  * to be merged into the resultant configuration tree
  */
-export abstract class Component<TArgs extends object = any> implements Named {
+export abstract class Component<TArgs = unknown> implements Named {
   protected readonly target: Target;
   public readonly name: string;
   public props: LazyTree<TArgs>;
@@ -78,9 +78,7 @@ export abstract class Component<TArgs extends object = any> implements Named {
    * Returns a prettified identifier of this component
    */
   public toString(): string {
-    let str = `${this.constructor.name}-${this.uuid.slice(0, 7)}`;
-    if (this.name) str += `@${this.name}`;
-    return str;
+    return `${this.name}-${this.uuid.slice(0, 7)}`;
   };
 };
 
@@ -93,8 +91,8 @@ export interface IComponentMatcher {
 };
 
 export class ComponentMatcher implements IComponentMatcher {
-  private readonly token: constructor<any>;
-  constructor(token: constructor<any>) {
+  private readonly token: constructor<Component>;
+  constructor(token: constructor<Component>) {
     this.token = token;
   };
 

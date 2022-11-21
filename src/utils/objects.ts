@@ -1,5 +1,4 @@
 import _ from 'lodash';
-import { constructor } from './types';
 
 /**
  * Returns true when type of `value` is `object` and is not `null`, `undefined` or
@@ -67,26 +66,4 @@ export function recursiveMergeThese<T>(source: T[]): T {
 export function notEmpty<TValue>(value: TValue | null | undefined): value is TValue {
   if (value === null || value === undefined) return false;
   return true;
-};
-
-/**
- * Variant of {Record<string, T>} that automatically constructs an instance of its child if it does not exist
- */
-export class AutoRecord {
-  public static new<T>(value: constructor<T>): Record<string, T> {
-    const handler = {
-      get(target: any, prop: string, _receiver: any): any {
-        if (prop in target) {
-          return target.prop;
-        };
-
-        const instance = new value();
-        target[prop] = instance;
-
-        return instance;
-      },
-    };
-
-    return new Proxy({}, handler);
-  };
 };

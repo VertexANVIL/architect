@@ -2,10 +2,19 @@ import _ from 'lodash';
 
 import { Component } from './component';
 import { Registry } from './registry';
-import { constructor, recursiveMerge } from './utils';
+import { Result } from './result';
+import { constructor } from './utils';
 
 export interface TargetResolveParams {
-  evaluateRequirements?: boolean;
+  /**
+   * Enable or disable validating requirements
+   */
+  requirements?: boolean;
+
+  /**
+   * Enable or disable validating configuration
+   */
+  validate?: boolean;
 };
 
 export abstract class BaseFact<T> {
@@ -22,22 +31,20 @@ export abstract class BaseFact<T> {
 export class Target {
   public readonly components = new Registry([this]);
   public readonly facts = new Registry();
-  public readonly extensions = new Registry([this]);
-  private readonly resources: any[] = [];
 
   /**
     * Invokes a build operation on all components, passing our facts
     */
-  public async resolve(params: TargetResolveParams = {}): Promise<any> {
-    const values: Component[] = Object.values(this.components.data);
+  public async resolve(params: TargetResolveParams = {}): Promise<Result> {
+    const values: [string, Component][] = Object.entries(this.components.data);
 
     // Ensure component inter-requirements are met
-    if (params.evaluateRequirements !== false) {
-      values.forEach(c => {
-        c.requirements.forEach(r => {
-          const matches = values.filter(d => r.match(d));
+    if (params.requirements !== false) {
+      values.forEach(([_k, v]) => {
+        v.requirements.forEach(r => {
+          const matches = values.filter(([_k2, v2]) => r.match(v2));
           if (matches.length <= 0) {
-            throw Error(`Component ${c.toString()}\nMatcher ${r.toString()} failed`);
+            throw Error(`Component ${v.toString()}\nMatcher ${r.toString()} failed`);
           };
         });
       });
@@ -45,28 +52,24 @@ export class Target {
 
     // Execute per-component configuration async
     await Promise.all(values.map(
-      async (cur) => cur.configure(),
+      async ([_k, v]) => v.configure(),
     ));
 
     // Execute component build async
     const results = await Promise.all(values.map(
-      async (cur): Promise<any> => {
-        let result = await cur.build();
-        return cur.postBuild(result);
+      async ([_k, v]): Promise<[string, Component]> => {
+        let result = await v.build();
+        return [v.toString(), v.postBuild(result)];
       },
     ));
 
-    results.push(...this.resources);
-    return results.reduce<any[]>((prev, cur) => {
-      return recursiveMerge(prev, cur);
-    }, []);
-  };
+    // build returning result object
+    const result = new Result();
+    results.forEach(([k, v]) => {
+      result.components[k] = v;
+    });
 
-  /**
-   * Appends an additional set of resources to the build tree
-   */
-  public append(...resources: any[]): void {
-    this.resources.push(...resources);
+    return result;
   };
 
   /**
@@ -82,11 +85,6 @@ export class Target {
   public fact<T>(token: constructor<T>): T {
     return this.facts.request(token);
   };
-
-  /**
-   * Requests the extension identified by the specified token
-   */
-  public extension<T>(token: constructor<T>): T {
-    return this.extensions.request(token);
-  };
 };
+
+export class ValidationError extends Error {};

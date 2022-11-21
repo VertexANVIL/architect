@@ -18,7 +18,7 @@ export abstract class Capability<T> {
 };
 
 export class CapabilityMatcher<T extends Capability<any>> implements IComponentMatcher {
-  private readonly token: constructor<any>;
+  private readonly token: constructor<T>;
   private readonly condition?: CapabilityCondition<T>;
 
   constructor(token: constructor<T>, condition?: CapabilityCondition<T>) {
