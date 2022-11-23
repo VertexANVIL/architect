@@ -44,7 +44,7 @@ export abstract class Component<TArgs = unknown> implements Named {
   };
 
   /**
-   * Returns the component types required by nbbthis component
+   * Returns the component types required by this component
    */
   public get requirements(): IComponentMatcher[] {
     return [];
@@ -75,10 +75,17 @@ export abstract class Component<TArgs = unknown> implements Named {
   };
 
   /**
+   * Returns this component's short result ID (RID)
+   */
+  public get rid(): string {
+    return `${this.name}-${this.uuid.slice(0, 7)}`;
+  };
+
+  /**
    * Returns a prettified identifier of this component
    */
   public toString(): string {
-    return `${this.name}-${this.uuid.slice(0, 7)}`;
+    return this.rid;
   };
 };
 

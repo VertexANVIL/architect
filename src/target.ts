@@ -2,7 +2,7 @@ import _ from 'lodash';
 
 import { Component } from './component';
 import { Registry } from './registry';
-import { Result } from './result';
+import { ResolvedComponent, Result } from './result';
 import { constructor } from './utils';
 
 export interface TargetResolveParams {
@@ -36,38 +36,37 @@ export class Target {
     * Invokes a build operation on all components, passing our facts
     */
   public async resolve(params: TargetResolveParams = {}): Promise<Result> {
-    const values: [string, Component][] = Object.entries(this.components.data);
+    const values: Component[] = Object.values(this.components.data);
+    const results: Record<string, Partial<ResolvedComponent>> = Object.fromEntries(values.map((v): [string, Partial<ResolvedComponent>] => {
+      return [v.rid, { component: v }];
+    }));
 
     // Ensure component inter-requirements are met
-    if (params.requirements !== false) {
-      values.forEach(([_k, v]) => {
-        v.requirements.forEach(r => {
-          const matches = values.filter(([_k2, v2]) => r.match(v2));
-          if (matches.length <= 0) {
-            throw Error(`Component ${v.toString()}\nMatcher ${r.toString()} failed`);
-          };
-        });
-      });
-    };
+    values.forEach((v) => {
+      results[v.rid].dependencies = v.requirements.reduce<Component[]>((prev, cur) => {
+        const matches = Object.values(this.components.data).filter(v2 => cur.match(v2));
+        if ((matches.length <= 0) && params.requirements !== false) {
+          throw Error(`Component ${v.toString()}\nMatcher ${cur.toString()} failed`);
+        };
+
+        return prev.concat(matches);
+      }, []);
+    });
 
     // Execute per-component configuration async
     await Promise.all(values.map(
-      async ([_k, v]) => v.configure(),
+      async (v) => v.configure(),
     ));
 
     // Execute component build async
-    const results = await Promise.all(values.map(
-      async ([_k, v]): Promise<[string, Component]> => {
-        let result = await v.build();
-        return [v.toString(), v.postBuild(result)];
-      },
-    ));
+    await Promise.all(values.map(async (v): Promise<void> => {
+      let result = await v.build();
+      results[v.rid].result = await v.postBuild(result);
+    }));
 
     // build returning result object
     const result = new Result();
-    results.forEach(([k, v]) => {
-      result.components[k] = v;
-    });
+    result.components = results as Record<string, ResolvedComponent>;
 
     return result;
   };

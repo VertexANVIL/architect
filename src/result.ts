@@ -1,9 +1,16 @@
 import * as fs from 'node:fs/promises';
+import { Component } from './component';
 import { ValidationError } from './target';
 import { recursiveMerge } from './utils';
 
 export interface Writer {
   write(result: Result, dir: string): Promise<void>;
+};
+
+export interface ResolvedComponent {
+  component: Component;
+  dependencies: Component[];
+  result: any;
 };
 
 /**
@@ -18,7 +25,7 @@ export class Result {
   /**
    * Component-specific resources
    */
-  public components: Record<string, any> = {};
+  public components: Record<string, ResolvedComponent> = {};
 
   /**
    * Writer that will be used to write the result
