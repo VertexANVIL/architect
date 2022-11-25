@@ -1,3 +1,10 @@
+/**
+ * @file Implementation of lazy value resolution system.
+ * Postulated over a 4-day furry convention and implemented
+ * during a 5-hour night afterwards with 2 cans of Monster.
+ * @author Alex Zero
+ */
+
 import _ from 'lodash';
 import { DeepPartial, DeepValue, Resolver, Value } from './value';
 
