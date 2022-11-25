@@ -2,19 +2,27 @@ import 'reflect-metadata';
 import _ from 'lodash';
 
 import { Capability } from './capability';
+import { ConfigurationContext } from './config';
 import { Target } from './target';
 import { constructor, Lazy, LazyTree, Named, setNamed } from './utils';
+
+export class ComponentArgs {
+  /**
+   * Whether the component is enabled.
+   */
+  enable: boolean = false;
+};
 
 /**
  * Base unit of resource management that produces objects
  * to be merged into the resultant configuration tree
  */
-export abstract class Component<TArgs = unknown> implements Named {
+export abstract class Component<TArgs extends ComponentArgs = ComponentArgs> implements Named {
   protected readonly target: Target;
   public readonly name: string;
   public props: LazyTree<TArgs>;
 
-  constructor(target: Target, name?: string, props?: TArgs) {
+  constructor(target: Target, name?: string, props: TArgs = new ComponentArgs() as TArgs) {
     if (!Reflect.hasMetadata('name', this.constructor) || !Reflect.hasMetadata('uuid', this.constructor)) {
       throw Error(`${this.constructor.name}: the name and uuid metadata attributes must be set`);
     };
@@ -39,6 +47,9 @@ export abstract class Component<TArgs = unknown> implements Named {
     setNamed(this);
   };
 
+  /**
+   * Returns the capabilities that this component declares
+   */
   public get capabilities(): Capability<any>[] {
     return [];
   };
@@ -53,12 +64,12 @@ export abstract class Component<TArgs = unknown> implements Named {
   /**
    * Invoked by the target during the build phase. Sets lazy properties on other components.
    */
-  public async configure() {};
+  public async configure(_context: ConfigurationContext) {};
 
   /**
    * Constructs this component, returning the object that should be merged into the global tree.
    */
-  public abstract build(): Promise<any>;
+  public async build(): Promise<any> { return undefined; };
 
   /**
    * Passthrough function that performs postprocessing on this component's build outputs

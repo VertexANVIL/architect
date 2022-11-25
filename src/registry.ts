@@ -40,16 +40,20 @@ export class Registry {
     this.data[id] = instance;
   };
 
-  public request<T>(token: constructor<T>, name?: string): T {
+  /**
+   * Requests an entry from the registry
+   * @param token The constructor token to request
+   * @param name Optional name of the object
+   * @param auto Create the object if it doesn't exist
+   */
+  public request<T>(token: constructor<T>, name?: string): T | undefined {
     let id = Reflect.getMetadata('uuid', token);
     if (!name && Reflect.hasMetadata('name', token)) {
       name = Reflect.getMetadata('name', token);
     };
 
     if (name) id += `@${name}`; // ...f38be@foobar-component
-    if (!(id in this.data)) {
-      throw Error(`${id} does not exist within this Registry`);
-    };
+    if (!(id in this.data)) return undefined;
 
     return this.data[id];
   };

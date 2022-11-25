@@ -1,9 +1,12 @@
 import _ from 'lodash';
 
 import { Component } from './component';
+import { ConfigurationContext } from './config';
 import { Registry } from './registry';
 import { ResolvedComponent, Result } from './result';
-import { constructor } from './utils';
+import { asyncFilter, constructor } from './utils';
+
+export interface TargetParams {};
 
 export interface TargetResolveParams {
   /**
@@ -17,7 +20,7 @@ export interface TargetResolveParams {
   validate?: boolean;
 };
 
-export abstract class BaseFact<T> {
+export abstract class BaseFact<T = unknown> {
   public readonly instance: T;
 
   constructor(instance: T) {
@@ -29,14 +32,34 @@ export abstract class BaseFact<T> {
  * Context for constructing objects.
  */
 export class Target {
-  public readonly components = new Registry([this]);
-  public readonly facts = new Registry();
+  public readonly params: TargetParams;
+
+  protected readonly components = new Registry([this]);
+  protected readonly facts = new Registry();
+
+  constructor(params: TargetParams = {}) {
+    this.params = params;
+  };
 
   /**
     * Invokes a build operation on all components, passing our facts
     */
   public async resolve(params: TargetResolveParams = {}): Promise<Result> {
-    const values: Component[] = Object.values(this.components.data);
+    // Execute per-component configuration async
+    // This allows us to figure out our enabled components
+    {
+      const context = new ConfigurationContext(this);
+      await Promise.all(Object.values(this.components.data).map(
+        async (v) => v.configure(context),
+      ));
+    };
+
+    // Aggregate all enabled components
+    const values: Component[] = await asyncFilter(
+      Object.values(this.components.data),
+      async (c: Component) => c.props.enable.$resolve(),
+    );
+
     const results: Record<string, Partial<ResolvedComponent>> = Object.fromEntries(values.map((v): [string, Partial<ResolvedComponent>] => {
       return [v.rid, { component: v }];
     }));
@@ -44,7 +67,7 @@ export class Target {
     // Ensure component inter-requirements are met
     values.forEach((v) => {
       results[v.rid].dependencies = v.requirements.reduce<Component[]>((prev, cur) => {
-        const matches = Object.values(this.components.data).filter(v2 => cur.match(v2));
+        const matches = values.filter(v2 => cur.match(v2));
         if ((matches.length <= 0) && params.requirements !== false) {
           throw Error(`Component ${v.toString()}\nMatcher ${cur.toString()} failed`);
         };
@@ -53,14 +76,11 @@ export class Target {
       }, []);
     });
 
-    // Execute per-component configuration async
-    await Promise.all(values.map(
-      async (v) => v.configure(),
-    ));
-
     // Execute component build async
     await Promise.all(values.map(async (v): Promise<void> => {
       let result = await v.build();
+      if (result === undefined) return;
+
       results[v.rid].result = await v.postBuild(result);
     }));
 
@@ -72,17 +92,31 @@ export class Target {
   };
 
   /**
+   * Registers and enables the specified component
+   */
+  public enable<T extends Component>(token: constructor<T>, name?: string) {
+    const result = this.component(token, name, true);
+    result.props.$set({ enable: true });
+  };
+
+  /**
    * Requests the component identified by the specified token
    */
-  public component<T>(token: constructor<T>): T {
-    return this.components.request(token);
+  public component<T extends Component>(token: constructor<T>, name?: string, auto: boolean = false): T {
+    let result = this.components.request(token, name);
+    if (result === undefined && auto) {
+      result = new token(this, name, undefined);
+      this.components.register(token, result);
+    };
+
+    return result!;
   };
 
   /**
    * Requests the fact identified by the specified token
    */
-  public fact<T>(token: constructor<T>): T {
-    return this.facts.request(token);
+  public fact<T extends BaseFact>(token: constructor<T>): T {
+    return this.facts.request(token)!;
   };
 };
 

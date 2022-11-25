@@ -67,3 +67,8 @@ export function notEmpty<TValue>(value: TValue | null | undefined): value is TVa
   if (value === null || value === undefined) return false;
   return true;
 };
+
+export async function asyncFilter<T>(arr: T[], predicate: (value: T) => Promise<boolean>): Promise<T[]> {
+  const results = await Promise.all(arr.map(predicate));
+  return arr.filter((_v, index) => results[index]);
+};

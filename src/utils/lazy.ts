@@ -1,8 +1,10 @@
 import _ from 'lodash';
-import { DeepValue, Resolver, Value } from './value';
+import { DeepPartial, DeepValue, Resolver, Value } from './value';
 
 const LAZY_SYMBOL = Symbol.for('akim.architect.Lazy');
 const LAZY_LEAF_SYMBOL = Symbol.for('akim.architect.LazyLeaf');
+
+type Ref<T, K> = (v: LazyTree<T>) => LazyTree<K>
 
 /**
  * Container for an atomic leaf value (i.e. not object)
@@ -97,7 +99,24 @@ export class Lazy {
       return Lazy.resolve(this);
     };
 
-    object.$set = function<U extends object>(value: Partial<U>, weight?: number) {
+    object.$ref = function<K>(func: Ref<T, K>, fallback?: K): Resolver<K> {
+      return async (): Promise<K> => {
+        let tree: LazyTree<K>;
+        try {
+          tree = func(object);
+        } catch (error) {
+          if (error instanceof TypeError && fallback !== undefined) {
+            return fallback;
+          };
+
+          throw error;
+        };
+
+        return tree.$resolve();
+      };
+    };
+
+    object.$set = function<U extends object>(value: U, weight?: number) {
       Lazy.set(this, value, weight);
     };
 
@@ -203,11 +222,18 @@ export type LazyBase<T> = {
   $resolve(force?: boolean): Promise<T>;
 
   /**
+   * Creates a reference within the context of this object
+   * @param fallback Fallback value if the result is undefined
+   * @returns A Resolver function containing the result
+   */
+  $ref<K>(func: Ref<T, K>, fallback?: K): Resolver<K>;
+
+  /**
    * Sets the value of this object recursively, from a value or another Lazy<U>
    * @param value The value to set the object to, or a Lazy container with a value
    * @param weight The weight to assign to child objects
    */
-  $set(value: Partial<DeepValue<T>>, weight?: number): void;
+  $set(value: DeepValue<DeepPartial<T>>, weight?: number): void;
 };
 
 export type LazyArray<T> = LazyTreeRoot<T>[];
