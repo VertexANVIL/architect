@@ -6,12 +6,14 @@
  */
 
 import _ from 'lodash';
+import { recursiveMerge } from './objects';
 import { DeepPartial, DeepValue, Resolver, Value } from './value';
 
-const LAZY_SYMBOL = Symbol.for('akim.architect.Lazy');
-const LAZY_LEAF_SYMBOL = Symbol.for('akim.architect.LazyLeaf');
+const LAZY_OBJECT_SYMBOL = Symbol.for('akim.architect.LazyObject');
+const LAZY_ARRAY_SYMBOL = Symbol.for('akim.architect.LazyArray');
+const LAZY_ATOMIC_SYMBOL = Symbol.for('akim.architect.LazyAtomic');
 
-type Ref<T, K> = (v: LazyTree<T>) => LazyTree<K>
+type Ref<T, K> = (v: LazyObject<T>) => K | LazyTree<K>;
 
 /**
  * Container for an atomic leaf value (i.e. not object)
@@ -19,29 +21,30 @@ type Ref<T, K> = (v: LazyTree<T>) => LazyTree<K>
 export class LazyLeaf<T> {
   private value: Value<T>;
   private weight: number = 0;
-  private cache?: T;
+  //private cache?: T;
 
   constructor(value: Value<T>) {
-    this.value = value;
-
     // set our symbol to ours
-    Object.defineProperty(this, LAZY_LEAF_SYMBOL, { value: true, enumerable: true });
+    Object.defineProperty(this, LAZY_ATOMIC_SYMBOL, { value: true, enumerable: true, configurable: true });
+
+    // set the internal value
+    this.value = undefined as any;
+    this.$set(value);
   };
 
   /**
-   * Resolves the value of this object
-   * @param force Ignore the cache and resolve the result from scratch
-   * @returns Promise containing the resolved result
+   * Evaluates the value of this object
+   * @returns Promise containing the evaluated result
    */
-  public async $resolve(force: boolean = false): Promise<T> {
-    if (!force && this.cache !== undefined) {
-      return this.cache;
-    };
+  public $resolve(): T {
+    // if (!force && this.cache !== undefined) {
+    //   return this.cache;
+    // };
 
     let result: T;
     if (typeof this.value === 'function') {
       const func = this.value as Resolver<T>;
-      result = await func();
+      result = func();
     } else {
       result = this.value;
     };
@@ -53,7 +56,7 @@ export class LazyLeaf<T> {
    * Sets the internal value
    */
   public $set(value: Value<T>, weight: number = 0) {
-    if (Lazy.isLeaf(value)) {
+    if (Lazy.isAtomic(value)) {
       throw Error('Cannot set a the value of a LazyLeaf<T> to another LazyLeaf<T>');
     };
 
@@ -62,7 +65,14 @@ export class LazyLeaf<T> {
       return;
     };
 
-    this.value = value;
+    if (!_.isObject(value) || _.isFunction(value) || Lazy.isObject(value)) {
+      this.value = value;
+    } else if (this.value === undefined) {
+      this.value = Lazy._deepConvert(value) as Value<T>;
+    } else {
+      this.value = Lazy.merge(this.value as LazyObject<any>, value) as any;
+    };
+
     this.weight = weight;
   };
 
@@ -72,135 +82,76 @@ export class LazyLeaf<T> {
 };
 
 export class Lazy {
-  public static from<T>(object: T): LazyTree<T> {
+  public static from<T>(object: Value<T>): LazyTree<T> {
     if (typeof object === 'function') {
-      const tree = Lazy.makeLazyTree<T>();
-      tree.__resolver__ = object as Resolver<T>;
-      return tree;
-    };
-
-    var clone = _.cloneDeep(object) as any;
-    if (Array.isArray(clone)) {
-      clone = clone.map(i => Lazy.convert(i));
-    } else {
-      for (const [k, v] of Object.entries(clone)) {
-        clone[k] = Lazy.convert(v as any);
-      };
+      // functions should also have smart accessors
+      return Lazy.makeLazyTree<object>(object as any) as LazyTree<T>;
+    } else if (typeof object !== 'object') {
+      return new LazyLeaf(object) as LazyTree<T>;
     };
 
     // convert to LazyTree and create our injected methods
-    return Lazy.makeLazyTree(clone);
+    const clone = Lazy._deepConvert(_.cloneDeep(object)) as LazyObject<object>;
+    return Lazy.makeLazyTree<object>(clone) as LazyTree<T>;
   };
 
-  public static isTree<T>(value: any): value is LazyTree<T> {
-    return (typeof(value) === 'object' && LAZY_SYMBOL in value);
-  };
-
-  public static isLeaf<T>(value: any): value is LazyLeaf<T> {
-    return (typeof(value) === 'object' && LAZY_LEAF_SYMBOL in value);
-  };
-
-  private static makeLazyTree<T>(object: any = {}): LazyTree<T> {
-    // create injected methods
-    object.$resolve = async function(): Promise<T> {
-      return Lazy.resolve(this);
-    };
-
-    object.$ref = function<K>(func: Ref<T, K>, fallback?: K): Resolver<K> {
-      return async (): Promise<K> => {
-        let tree: LazyTree<K>;
-        try {
-          tree = func(object);
-        } catch (error) {
-          if (error instanceof TypeError && fallback !== undefined) {
-            return fallback;
-          };
-
-          throw error;
-        };
-
-        return tree.$resolve();
+  public static _deepConvert<T extends object>(object: any): T {
+    if (Array.isArray(object)) {
+      object = object.map(i => Lazy.convert(i));
+    } else {
+      for (const [k, v] of Object.entries(object)) {
+        object[k] = Lazy.convert(v as any);
       };
     };
-
-    object.$set = function<U extends object>(value: U, weight?: number) {
-      Lazy.set(this, value, weight);
-    };
-
-    // set the symbol on the new object
-    Object.defineProperty(object, LAZY_SYMBOL, { value: true, enumerable: true });
 
     return object;
   };
 
-  private static convert<T>(src: T): LazyTree<T> | LazyLeaf<T> {
-    // skip conversion for any existing objects
-    if (Lazy.isTree<T>(src) || Lazy.isLeaf<T>(src)) return src;
-
-    // objects & functions -> lazy, others to leaf objects
-    if (typeof src === 'object' || typeof src == 'function') return Lazy.from(src);
-    return new LazyLeaf(src);
+  public static isObject<T>(value: any): value is LazyObject<T> {
+    return (typeof(value) === 'object' && LAZY_OBJECT_SYMBOL in value && value[LAZY_OBJECT_SYMBOL]);
   };
 
-  private static isSpecialFunction(name: string, value: any): boolean {
-    if (typeof(value) !== 'function') return false;
-    if (name.startsWith('$')) return true;
-    return false;
+  public static isArray<T>(value: any): value is LazyObject<T> & any[] {
+    return (typeof(value) === 'object' && LAZY_ARRAY_SYMBOL in value && value[LAZY_ARRAY_SYMBOL]);
   };
 
-  private static async resolve<T>(instance: LazyTree<T>): Promise<T> {
-    async function convert(src: any): Promise<any> {
-      if (Lazy.isTree(src)) {
-        return (src as LazyTree<any>).$resolve();
-      } else if (Lazy.isLeaf(src)) {
-        return (src as LazyLeaf<any>).$resolve();
-      } else {
-        throw Error('value should be Lazy or LazyLeaf');
-      };
-    };
-
-    // does a resolver exist? use it!
-    if (instance.__resolver__ !== undefined) {
-      return instance.__resolver__();
-    };
-
-    let result: any;
-    if (Array.isArray(instance)) {
-      result = await Promise.all(instance.map(async i => convert(i)));
-    } else {
-      // create blank object
-      result = {};
-
-      // TODO: refactor this into a Promise.all
-      for (const [k, v] of Object.entries(instance)) {
-        // do not copy over our special functions
-        if (Lazy.isSpecialFunction(k, v)) continue;
-        result[k] = await convert(v);
-      };
-    };
-
-    return result;
+  public static isAtomic<T>(value: any): value is LazyLeaf<T> {
+    return (typeof(value) === 'object' && LAZY_ATOMIC_SYMBOL in value && value[LAZY_ATOMIC_SYMBOL]);
   };
 
-  private static set<T>(instance: LazyTree<T>, value: T, weight: number = 0) {
-    function customizer(dest: LazyTree<T> | undefined, src: T, key: string): LazyTree<T> | LazyLeaf<T> | undefined {
+  /**
+   * Merges objects preserving lazy object structure
+   */
+  public static merge<T extends object>(instance: LazyTree<T>, value: Value<T>, weight: number = 0): LazyTree<T> {
+    if (_.isArray(instance) && _.isArray(value)) {
+      return Lazy.convert(instance.concat(...value) as T) as any;
+    };
+
+    function customizer(dest: LazyTree<T> | undefined, src: Value<T>, key: string): LazyTree<T> | LazyLeaf<T> | undefined {
       // ignore special functions
-      if (Lazy.isSpecialFunction(key, src)) {
+      if (Lazy.isInternalValue(key)) {
         return dest;
       };
 
       // if the dest is a LazyLeaf, set its value
-      if (Lazy.isLeaf(dest)) {
+      if (Lazy.isAtomic(dest)) {
         const leaf = dest as LazyLeaf<T>;
         leaf.$set(src, weight);
 
         return leaf;
       };
 
-      // handle array merging
-      if (_.isArray(src) && _.isArray(dest)) {
-        // concat creates a completely new array, so we need to wrap it in a constructor call
-        return Lazy.convert(dest.concat(src) as T);
+      // handle array merging - if the dest is not compatible, we will overwrite it
+      // concat creates a completely new array, so we need to wrap it in a constructor call
+      if (_.isArray(src)) {
+        let result = [];
+        if (Lazy.isArray(dest)) {
+          // Note: this will perform a set operation as we are not returning the same object
+          result.push(...dest.$eval() as any[]);
+        };
+
+        result.push(...src);
+        return Lazy.convert(result as T);
       };
 
       // no merging if the destination is undefined
@@ -211,22 +162,186 @@ export class Lazy {
       return undefined;
     };
 
-    _.mergeWith(instance, value, customizer);
+    return _.mergeWith(instance, value, customizer);
+  };
+
+  private static makeLazyTree<T extends object>(object: Value<LazyObject<T>>): LazyTree<T> {
+    // create injected methods
+    const internal = {
+      $__leaf__: new LazyLeaf(object),
+
+      $eval: function(): LazyObject<T> {
+        return this.$__leaf__.$resolve();
+      },
+
+      $resolve: function(fallback?: Partial<T>): T {
+        let result = Lazy.resolve<T>(this.$__leaf__.$resolve());
+        if (fallback !== undefined) {
+          result = recursiveMerge(fallback, result);
+        };
+
+        return result;
+      },
+
+      $ref: function<K extends object>(func: Ref<T, K>, fallback?: K): Resolver<K | LazyTree<K>> {
+        return (): K | LazyTree<K> => {
+          let result: K | LazyTree<K>;
+          try {
+            result = func(this.$__leaf__.$resolve());
+          } catch (error) {
+            if (error instanceof TypeError && fallback !== undefined) {
+              result = fallback;
+            } else {
+              throw error;
+            };
+          };
+
+          return result;
+        };
+      },
+
+      $set: function(value: Value<LazyObject<T>>, weight?: number) {
+        this.$__leaf__.$set(value, weight);
+      },
+    } as LazyObjectClass<T>;
+
+    Object.defineProperty(internal, LAZY_OBJECT_SYMBOL, { value: true, enumerable: true, configurable: true });
+    Object.defineProperty(internal, LAZY_ARRAY_SYMBOL, { value: _.isArray(object), enumerable: true, configurable: true });
+    Object.defineProperty(internal, LAZY_ATOMIC_SYMBOL, { value: false, enumerable: true, configurable: true });
+
+    const proxy = new Proxy(internal, {
+      defineProperty(_target, _property, _attributes) {
+        throw new Error('cannot mutate properties of lazy object with dot notation, use the .$set() function instead');
+      },
+
+      deleteProperty(target, p) {
+        if (Reflect.has(target, p)) {
+          throw Error(`cannot modify internal property ${p.toString()}`);
+        };
+
+        return Reflect.deleteProperty(target.$eval(), p);
+      },
+
+      get(target, p, receiver) {
+        if (Reflect.has(target, p)) {
+          return Reflect.get(target, p, receiver);
+        };
+
+        const result = target.$eval();
+        return Reflect.get(result as any, p, receiver);
+      },
+
+      getOwnPropertyDescriptor(target, p) {
+        if (Reflect.has(target, p)) {
+          return Reflect.getOwnPropertyDescriptor(target, p);
+        };
+
+        return Reflect.getOwnPropertyDescriptor(target.$eval(), p);
+      },
+
+      // getPrototypeOf(target) {
+      //   return Reflect.getPrototypeOf(target.$eval());
+      // },
+
+      has(target, p) {
+        if (Reflect.has(target, p)) return true;
+        return Reflect.has(target.$eval(), p);
+      },
+
+      // isExtensible(target) {
+      //   return Reflect.isExtensible(target.$eval());
+      // },
+
+      ownKeys(target) {
+        const keys = Reflect.ownKeys(target);
+        keys.push(...Reflect.ownKeys(target.$eval()));
+        return keys;
+      },
+
+      // preventExtensions(target) {
+      //   return Reflect.preventExtensions(target.$eval());
+      // },
+
+      set(target, p, newValue, _receiver) {
+        if (Reflect.has(target, p)) {
+          throw Error(`cannot modify internal property ${p.toString()}`);
+        };
+
+        return Reflect.set(target.$eval(), p, newValue);
+      },
+    });
+
+    return proxy as any;
+  };
+
+  private static convert<T>(src: Value<T>): LazyTree<T> {
+    // skip conversion for any existing objects
+    if (Lazy.isObject<T>(src) || Lazy.isAtomic<T>(src)) return src as LazyTree<T>;
+
+    // functions should also have smart accessors
+    if (typeof src === 'function') {
+      return Lazy.makeLazyTree<object>(src as any) as LazyTree<T>;
+    } else if (typeof src !== 'object') {
+      return new LazyLeaf(src) as LazyTree<T>;
+    };
+
+    // convert to LazyTree and create our injected methods
+    return Lazy.makeLazyTree<object>(Lazy._deepConvert(src)) as LazyTree<T>;
+  };
+
+  private static isInternalValue(name: string): boolean {
+    if (name.startsWith('$')) return true;
+    return false;
+  };
+
+  private static resolve<T>(instance: any): any {
+    if (Lazy.isObject(instance)) {
+      instance = (instance as LazyObject<T>).$eval();
+    };
+
+    if (Lazy.isAtomic(instance)) {
+      const leaf = instance as LazyLeaf<any>;
+      return leaf.$resolve();
+    };
+
+    if (!_.isObject(instance)) return instance;
+
+    let result: any;
+    if (_.isArray(instance)) {
+      result = instance.map(i => Lazy.resolve(i));
+    } else {
+      // create blank object
+      result = {};
+
+      for (const [k, v] of Object.entries(instance)) {
+        // do not copy over our special functions
+        if (Lazy.isInternalValue(k)) continue;
+        result[k] = Lazy.resolve(v);
+      };
+    };
+
+    return result;
   };
 };
 
-export type LazyBase<T> = {
+export type LazyObjectClass<T> = {
   /**
-   * Resolver for this object. Overrides all fields, and always calculated first.
+   * Internal leaf value holder object
    */
-  __resolver__?: Resolver<T>;
+  $__leaf__: LazyLeaf<LazyObject<T>>;
 
   /**
-   * Resolves the value of this object
-   * @param force Ignore the cache and resolve the result from scratch
-   * @returns Promise containing the resolved result
+   * Evaluates the value of this object
+   * @returns The evaluated result
    */
-  $resolve(force?: boolean): Promise<T>;
+  $eval(): LazyObjectBase<T>;
+
+  /**
+   * Resolves the entire configuration tree and returns the result
+   * @param fallback Default value to be merged if the value does not exist
+   * @returns The result of the evaluation
+   */
+  $resolve(fallback?: Partial<T>): T;
 
   /**
    * Creates a reference within the context of this object
@@ -243,14 +358,11 @@ export type LazyBase<T> = {
   $set(value: DeepValue<DeepPartial<T>>, weight?: number): void;
 };
 
-export type LazyArray<T> = LazyTreeRoot<T>[];
-export type LazyObject<T> = {
-  [P in keyof T]-?: LazyTreeRoot<T[P]>
+type lazyObjectHelper<T> = {
+  [P in keyof T]: LazyTree<T[P]>
 };
 
 // array, type, or leaf value?
-export type LazyTreeRoot<T> =
-  T extends object ? LazyTree<T> : LazyLeaf<T>;
-
-export type LazyTree<T> = LazyBase<T> &
-(T extends (infer U)[] ? LazyArray<Required<U>> : LazyObject<Required<T>>);
+export type LazyObjectBase<T> = (T extends (infer U)[] ? LazyLeaf<Required<U>>[] : lazyObjectHelper<Required<T>>);
+export type LazyObject<T> = LazyObjectBase<T> & LazyObjectClass<T>;
+export type LazyTree<T> = T extends object ? LazyObject<T> : LazyLeaf<T>;

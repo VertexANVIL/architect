@@ -1,4 +1,4 @@
-export type Resolver<T> = () => Promise<T>;
+export type Resolver<T> = () => T;
 export type Value<T> = T | Resolver<T>;
 
 type DeepValueArray<T> = DeepValue<T>[];

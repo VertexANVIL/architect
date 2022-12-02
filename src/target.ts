@@ -57,7 +57,8 @@ export class Target {
     // Aggregate all enabled components
     const values: Component[] = await asyncFilter(
       Object.values(this.components.data),
-      async (c: Component) => c.props.enable.$resolve(),
+      // TODO: somehow make the null check & .$resolve() a single operation
+      async (c: Component) => ((c.props.enable !== undefined && c.props.enable.$resolve() === true)),
     );
 
     const results: Record<string, Partial<ResolvedComponent>> = Object.fromEntries(values.map((v): [string, Partial<ResolvedComponent>] => {

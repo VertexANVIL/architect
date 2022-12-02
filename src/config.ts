@@ -2,7 +2,7 @@ import { Component } from './component';
 import { Target } from './target';
 import { constructor, DeepPartial, DeepValue, LazyTree } from './utils';
 
-type Extract<T extends Component> = T extends Component<infer U> ? U : never;
+type Extract<T extends Component> = T extends Component<infer _R, infer U> ? U : never;
 
 /**
  * Provides context for component configuration execution
@@ -21,7 +21,7 @@ export class ConfigurationContext {
     this.target.enable(token, name);
   };
 
-  public set<T extends Component>(token: constructor<T>, value: DeepValue<DeepPartial<Extract<T>>>) {
-    this.component<T>(token, undefined).$set(value);
+  public set<T extends Component>(token: constructor<T>, value: DeepValue<DeepPartial<Extract<T>>>, weight?: number) {
+    this.component<T>(token, undefined).$set(value, weight);
   };
 };

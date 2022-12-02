@@ -6,34 +6,51 @@ import { ConfigurationContext } from './config';
 import { Target } from './target';
 import { constructor, Lazy, LazyTree, Named, setNamed } from './utils';
 
-export class ComponentArgs {
+export interface ComponentArgs {
   /**
    * Whether the component is enabled.
    */
-  enable: boolean = false;
+  enable?: boolean;
 };
 
 /**
  * Base unit of resource management that produces objects
  * to be merged into the resultant configuration tree
  */
-export abstract class Component<TArgs extends ComponentArgs = ComponentArgs> implements Named {
+export abstract class Component<
+  TResult extends object = any,
+  TArgs extends ComponentArgs = ComponentArgs,
+  TParent extends Component = any
+> implements Named {
   protected readonly target: Target;
+
+  protected readonly children: Component[] = [];
+  protected readonly parent?: TParent;
+
   public readonly name: string;
   public props: LazyTree<TArgs>;
 
-  constructor(target: Target, name?: string, props: TArgs = new ComponentArgs() as TArgs) {
-    if (!Reflect.hasMetadata('name', this.constructor) || !Reflect.hasMetadata('uuid', this.constructor)) {
-      throw Error(`${this.constructor.name}: the name and uuid metadata attributes must be set`);
-    };
-
+  constructor(target: Target, props: TArgs = {} as TArgs, name?: string, parent?: TParent) {
     this.target = target;
+    this.parent = parent;
 
-    // default the name to our metadata attribute
-    if (name !== undefined) {
-      this.name = name;
+    if (this.parent !== undefined) {
+      if (name !== undefined) {
+        throw Error('the name parameter must be left undefined when a parent is specified');
+      };
+
+      this.name = this.parent.name;
     } else {
-      this.name = Reflect.getMetadata('name', this.constructor);
+      if (!Reflect.hasMetadata('name', this.constructor) || !Reflect.hasMetadata('uuid', this.constructor)) {
+        throw Error(`${this.constructor.name}: the name and uuid metadata attributes must be set`);
+      };
+
+      // default the name to our metadata attribute
+      if (name !== undefined) {
+        this.name = name;
+      } else {
+        this.name = Reflect.getMetadata('name', this.constructor);
+      };
     };
 
     // hacky way to leave this defaultable
@@ -45,6 +62,9 @@ export abstract class Component<TArgs extends ComponentArgs = ComponentArgs> imp
 
     // Component is a Named
     setNamed(this);
+
+    // Run initialiser
+    this.init();
   };
 
   /**
@@ -62,14 +82,36 @@ export abstract class Component<TArgs extends ComponentArgs = ComponentArgs> imp
   };
 
   /**
-   * Invoked by the target during the build phase. Sets lazy properties on other components.
+   * Adds a child by constructing it and adding it to this component
    */
-  public async configure(_context: ConfigurationContext) {};
+  protected addChild(child: constructor<Component>) {
+    const instance = new child(this.target, undefined, undefined, this);
+    this.children.push(instance);
+  };
 
   /**
-   * Constructs this component, returning the object that should be merged into the global tree.
+   * Constructs this component, setting properties on the Result object.
    */
-  public async build(): Promise<any> { return undefined; };
+  public async build(result: TResult = {} as any): Promise<TResult> {
+    for (const c of this.children) {
+      result = await c.build(result);
+    };
+
+    return result;
+  };
+
+  /**
+   * Invoked by the target during the build phase. Sets lazy properties on other components.
+   */
+  public async configure(_context: ConfigurationContext) {
+    await Promise.all(this.children.map(c => c.configure));
+  };
+
+  /**
+   * Implementation of custom initialisation behaviour.
+   * Override this instead of overriding the constructor to avoid boilerplate code.
+   */
+  public init() {};
 
   /**
    * Passthrough function that performs postprocessing on this component's build outputs
@@ -82,6 +124,10 @@ export abstract class Component<TArgs extends ComponentArgs = ComponentArgs> imp
    * Returns this component's UUID
    */
   public get uuid(): string {
+    if (this.parent !== undefined) {
+      return this.parent.uuid;
+    };
+
     return Reflect.getMetadata('uuid', this.constructor);
   };
 
