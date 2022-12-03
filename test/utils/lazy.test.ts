@@ -8,6 +8,9 @@ interface TestOptionsB {
 
 interface TestOptionsA {
   foobar?: Record<string, TestOptionsB>;
+  barfoo?: any;
+  test3?: any;
+  blasj?: any;
 };
 
 test('assignment and resolution', async () => {
@@ -25,6 +28,32 @@ test('assignment and resolution', async () => {
 
   expect(resolved).toStrictEqual(value);
 });
+
+// test('forced resolution does not mutate objects', async () => {
+//   const lazy = Lazy.from({
+//     foo1: 'bar1',
+//     foo2: 'bar2',
+//     foo3: {
+//       foo4: {
+//         bar1: 'ewjjwiwd',
+//         bar2: 'dwdawdw',
+//         bar3: ['fuckoff'],
+//       },
+//     },
+//   });
+
+//   lazy.$set({
+//     foo3: {
+//       foo5: {
+//         test1: lazy.$ref(r => r.foo3.foo4.bar1),
+//       },
+//     },
+//   } as any);
+
+//   const before = objectHash(lazy);
+//   lazy.$resolve();
+//   expect(before).toStrictEqual(objectHash(lazy));
+// });
 
 test('creating lazy leaf from atomic', async () => {
   const atom = 'foobar';
@@ -47,6 +76,79 @@ test('cannot set leaf to another leaf', async () => {
   }).toThrow();
 });
 
+test('conditional values of leaf', async () => {
+  const lazy = Lazy.from({
+    stuff: ['foo'],
+    options: {
+      enable: true,
+    },
+  });
+
+  lazy.stuff.$set(['bar'] as any, undefined, false, () => lazy.options.enable);
+
+  expect(lazy.$resolve()).toStrictEqual({
+    stuff: ['foo', 'bar'],
+    options: {
+      enable: true,
+    },
+  });
+});
+
+test('advanced conditional stuff', async () => {
+  const lazy = Lazy.from({
+    app: {
+      stuff: [],
+      options: {
+        enable: false,
+      },
+    },
+  });
+
+  lazy.$set({
+    app: {
+      options: {
+        enable: lazy.$ref(r => (r as any).app2.options.enable),
+      },
+    },
+    app2: {
+      stuff: [],
+      options: {
+        enable: false,
+      },
+    },
+  } as any);
+
+  lazy.app.stuff.$set(['bar'] as any, undefined, false, () => lazy.app.options.enable);
+
+  expect(lazy.$resolve()).toStrictEqual({
+    app: {
+      stuff: [],
+      options: { enable: false },
+    },
+    app2: {
+      stuff: [],
+      options: { enable: false },
+    },
+  });
+
+  lazy.$set({
+    app2: {
+      options: { enable: true },
+    },
+  } as any);
+
+  expect(lazy.$resolve()).toStrictEqual({
+    app: {
+      stuff: ['bar'],
+      options: { enable: true },
+    },
+    app2: {
+      stuff: [],
+      options: { enable: true },
+    },
+  });
+});
+
 test('directly mutating properties throws error', async () => {
   const value: TestOptionsA = {
     foobar: {
@@ -63,21 +165,14 @@ test('directly mutating properties throws error', async () => {
     Reflect.defineProperty(lazy.foobar.foo, 'offf', {});
   }).toThrow();
 
-  // we might want this?
-  // expect(() => {
-  //   delete lazy.foobar.foo.barA;
-  // }).toThrow();
+  // expected behaviour is merging in a dict with attributes forced to omit
+  expect(() => {
+    delete lazy.foobar.foo.barA;
+  }).toThrow();
 
-  // expect(() => {
-  //   lazy.foobar.foo.off = 'dwjdjwws';
-  // }).toThrow();
-});
-
-test('properties can be deleted', async () => {
-  const lazy = Lazy.from({ foo: 'bar', bar2: 'bar2' });
-  delete (lazy as any).bar2;
-
-  expect(lazy.$resolve()).toStrictEqual({ foo: 'bar' });
+  expect(() => {
+    lazy.foobar.foo.off = 'dwjdjwws';
+  }).toThrow();
 });
 
 test('internal properties cannot be mutated', async () => {
@@ -176,13 +271,27 @@ test('merging arrays deep in objects', async () => {
   });
 }),
 
+test('merging to undefined properties', async () => {
+  const lazy = Lazy.from({
+    foo: undefined as any,
+  });
+
+  lazy.$set({
+    foo: 'bar',
+  });
+
+  expect(lazy.$resolve()).toStrictEqual({
+    foo: 'bar',
+  });
+});
+
 test('fallback resolution', async () => {
-  const lazy = Lazy.from({ fuck: 'off' });
-  const resolved = lazy.$resolve({
+  const tree = Lazy.from({ fuck: 'off' });
+  const resolved1 = tree.$resolve({
     the: 'fuck',
   } as any);
 
-  expect(resolved).toStrictEqual({ fuck: 'off', the: 'fuck' });
+  expect(resolved1).toStrictEqual({ fuck: 'off', the: 'fuck' });
 });
 
 test('fallback refs', async () => {
@@ -212,47 +321,79 @@ test('fallback refs', async () => {
   }).toThrow(TypeError);
 });
 
-test('recursive resolution and deep cross referencing', async () => {
-  const value: TestOptionsA = {};
-  const lazy = Lazy.from(value);
+test('recursive resolution stress test', async () => {
+  for (let i = 0; i < 100; i++) {
+    const value: TestOptionsA = {};
+    const lazy = Lazy.from(value);
 
-  lazy.$set({
-    foobar: {
-      foo: {
-        barA: '12212',
-        barB: '1221212112',
+    lazy.$set({
+      foobar: {
+        foo: {
+          barA: '12212',
+          barB: '1221212112',
+        },
+        foo2: lazy.$ref(r => r.foobar.foo),
+        foo3: {
+          barA: '12321',
+          barB: lazy.$ref(r => r.foobar.foo2.barA),
+        },
+        foo4: {
+          barA: '1291292912',
+          barB: lazy.$ref(r => r.foobar.foo3.barA),
+        },
+        foo5: {
+          barB: lazy.$ref(r => r.foobar.foo2.barA),
+        },
+        foo6: {
+          off: [
+            lazy.$ref(r => r.foobar.foo),
+          ],
+        },
+        foo7: lazy.$ref(r => r.foobar.foo2),
       },
-      foo2: lazy.$ref(r => r.foobar.foo),
-      foo3: {
-        barA: '12321',
-        barB: lazy.$ref(r => r.foobar.foo4.barA),
+      barfoo: {
+        fuck: 'yeah',
       },
-      foo4: {
-        barA: '1291292912',
-        barB: lazy.$ref(r => r.foobar.foo3.barA),
-      },
-      foo5: {
-        barA: lazy.$ref(r => r.foobar.foo2.barA),
-      },
-      foo6: {
-        off: [
-          lazy.$ref(r => r.foobar.foo),
-        ],
-      },
-    },
-  });
+    });
 
-  const resolved = lazy.$resolve();
-  expect(resolved).toStrictEqual({
-    foobar: {
-      foo: { barA: '12212', barB: '1221212112' },
-      foo2: { barA: '12212', barB: '1221212112' },
-      foo3: { barA: '12321', barB: '1291292912' },
-      foo4: { barA: '1291292912', barB: '12321' },
-      foo5: { barA: '12212' },
-      foo6: { off: [{ barA: '12212', barB: '1221212112' }] },
-    },
-  });
+    lazy.$set({
+      barfoo: {
+        fuck: 'no',
+        blahaj: ['12212'],
+      },
+      foobar: {
+        foo7: {
+          barB: 'bndbdsnd',
+        },
+      },
+    });
+
+    lazy.$set({
+      blasj: ['fuck'],
+      test3: lazy.$ref(r => r.barfoo),
+    });
+
+    lazy.$set({
+      blasj: ['why', 'the'],
+      test3: { fuck: { eeee: 'the' }, blahaj: ['13'] },
+    });
+
+    const resolved = lazy.$resolve();
+    expect(resolved).toStrictEqual({
+      barfoo: { fuck: 'no', blahaj: ['12212'] },
+      test3: { fuck: { eeee: 'the' }, blahaj: ['12212', '13'] },
+      blasj: ['fuck', 'why', 'the'],
+      foobar: {
+        foo: { barA: '12212', barB: '1221212112' },
+        foo2: { barA: '12212', barB: '1221212112' },
+        foo3: { barA: '12321', barB: '12212' },
+        foo4: { barA: '1291292912', barB: '12321' },
+        foo5: { barB: '12212' },
+        foo6: { off: [{ barA: '12212', barB: '1221212112' }] },
+        foo7: { barA: '12212', barB: 'bndbdsnd' },
+      },
+    });
+  };
 });
 
 test('special fields will not be merged', async () => {
@@ -270,7 +411,7 @@ test('special fields will not be merged', async () => {
   expect(resolved).toStrictEqual({});
 });
 
-test('stringify lazy leaf object', async () => {
-  const atom = 'foobar';
-  expect(Lazy.from(atom).toString()).toStrictEqual('foobar');
-});
+// test('stringify lazy leaf object', async () => {
+//   const atom = 'foobar';
+//   expect(Lazy.from(atom).toString()).toStrictEqual('foobar');
+// });
