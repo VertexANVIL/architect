@@ -21,6 +21,14 @@ export function toArray<T>(input: T | T[]): T[] {
   return Array.isArray(input) ? input : [input];
 };
 
+export function arrayEndsWith<T>(array: T[], suffix: T[]): boolean {
+  return _.isEqual(array.slice(-suffix.length), suffix);
+};
+
+export function arrayStartsWith<T>(array: T[], prefix: T[]): boolean {
+  return _.isEqual(array.slice(0, prefix.length), prefix);
+};
+
 /**
  * Returns `code` of an error-like object.
  *

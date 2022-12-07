@@ -4,7 +4,7 @@ import { Component } from './component';
 import { ConfigurationContext } from './config';
 import { Registry } from './registry';
 import { ResolvedComponent, Result } from './result';
-import { asyncFilter, constructor } from './utils';
+import { asyncFilter, Condition, constructor } from './utils';
 
 export interface TargetParams {};
 
@@ -48,9 +48,8 @@ export class Target {
     // Execute per-component configuration async
     // This allows us to figure out our enabled components
     {
-      const context = new ConfigurationContext(this);
       await Promise.all(Object.values(this.components.data).map(
-        async (v) => v.configure(context),
+        async (v: Component) => v.configure(new ConfigurationContext(this, v.props)),
       ));
     };
 
@@ -58,7 +57,7 @@ export class Target {
     const values: Component[] = await asyncFilter(
       Object.values(this.components.data),
       // TODO: somehow make the null check & .$resolve() a single operation
-      async (c: Component) => ((c.props.enable !== undefined && c.props.enable.$resolve() === true)),
+      async (c: Component) => ((c.props.enable !== undefined && await c.props.enable.$resolve() === true)),
     );
 
     const results: Record<string, Partial<ResolvedComponent>> = Object.fromEntries(values.map((v): [string, Partial<ResolvedComponent>] => {
@@ -95,9 +94,9 @@ export class Target {
   /**
    * Registers and enables the specified component
    */
-  public enable<T extends Component>(token: constructor<T>, name?: string) {
+  public enable<T extends Component>(token: constructor<T>, name?: string, weight?: number, force?: boolean, condition?: Condition) {
     const result = this.component(token, name, true);
-    result.props.$set({ enable: true });
+    result.props.$set({ enable: true }, weight, force, condition);
   };
 
   /**

@@ -4,7 +4,7 @@ import _ from 'lodash';
 import { Capability } from './capability';
 import { ConfigurationContext } from './config';
 import { Target } from './target';
-import { constructor, Lazy, LazyTree, Named, setNamed } from './utils';
+import { constructor, Lazy, LazyAuto, Named, setNamed } from './utils';
 
 export interface ComponentArgs {
   /**
@@ -28,7 +28,7 @@ export abstract class Component<
   protected readonly parent?: TParent;
 
   public readonly name: string;
-  public props: LazyTree<TArgs>;
+  public props: LazyAuto<TArgs>;
 
   constructor(target: Target, props: TArgs = {} as TArgs, name?: string, parent?: TParent) {
     this.target = target;

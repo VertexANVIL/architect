@@ -1,6 +1,6 @@
-import { Component } from './component';
+import { Component, ComponentArgs } from './component';
 import { Target } from './target';
-import { constructor, DeepPartial, DeepValue, LazyTree } from './utils';
+import { constructor, DeepPartial, DeepValue, LazyAuto } from './utils';
 
 type Extract<T extends Component> = T extends Component<infer _R, infer U> ? U : never;
 
@@ -9,19 +9,22 @@ type Extract<T extends Component> = T extends Component<infer _R, infer U> ? U :
  */
 export class ConfigurationContext {
   private readonly target: Target;
-  constructor(target: Target) {
+  private readonly self: LazyAuto<ComponentArgs>;
+
+  constructor(target: Target, self: LazyAuto<ComponentArgs>) {
     this.target = target;
+    this.self = self;
   };
 
-  public component<T extends Component>(token: constructor<T>, name?: string): LazyTree<Extract<T>> {
-    return this.target.component(token, name, true).props as LazyTree<Extract<T>>;
+  public component<T extends Component>(token: constructor<T>, name?: string): LazyAuto<Extract<T>> {
+    return this.target.component(token, name, true).props as LazyAuto<Extract<T>>;
   };
 
-  public enable<T extends Component>(token: constructor<T>, name?: string) {
-    this.target.enable(token, name);
+  public enable<T extends Component>(token: constructor<T>, name?: string, weight?: number, force?: boolean) {
+    this.target.enable(token, name, weight, force, async () => this.self.enable);
   };
 
-  public set<T extends Component>(token: constructor<T>, value: DeepValue<DeepPartial<Extract<T>>>, weight?: number) {
-    this.component<T>(token, undefined).$set(value, weight);
+  public async set<T extends Component>(token: constructor<T>, value: DeepValue<DeepPartial<Extract<T>>>, weight?: number, force?: boolean) {
+    this.component<T>(token, undefined).$set(value, weight, force, async () => this.self.enable);
   };
 };
