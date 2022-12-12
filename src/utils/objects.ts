@@ -21,26 +21,22 @@ export function toArray<T>(input: T | T[]): T[] {
   return Array.isArray(input) ? input : [input];
 };
 
-export function arrayEndsWith<T>(array: T[], suffix: T[]): boolean {
-  return _.isEqual(array.slice(-suffix.length), suffix);
-};
-
 export function arrayStartsWith<T>(array: T[], prefix: T[]): boolean {
   return _.isEqual(array.slice(0, prefix.length), prefix);
 };
 
-/**
- * Returns `code` of an error-like object.
- *
- * @public
- */
-export function getErrorCode(err: unknown): string | undefined {
-  if (isRecord(err) && typeof err.code === 'string') {
-    return err.code;
-  };
+// /**
+//  * Returns `code` of an error-like object.
+//  *
+//  * @public
+//  */
+// export function getErrorCode(err: unknown): string | undefined {
+//   if (isRecord(err) && typeof err.code === 'string') {
+//     return err.code;
+//   };
 
-  return;
-};
+//   return;
+// };
 
 /**
  * Recursively merges the following objects, properly handling array values
@@ -74,6 +70,16 @@ export function recursiveMergeThese<T>(source: T[]): T {
 export function notEmpty<TValue>(value: TValue | null | undefined): value is TValue {
   if (value === null || value === undefined) return false;
   return true;
+};
+
+/**
+ * Returns whether the specified object is either an empty object or an empty array
+ */
+export function isEmptyObject(obj: any): boolean {
+  if (obj === undefined || obj === null) return true;
+
+  if (_.isArray(obj)) return obj.length === 0;
+  return Object.keys(obj).length === 0;
 };
 
 export async function asyncFilter<T>(arr: T[], predicate: (value: T) => Promise<boolean>): Promise<T[]> {

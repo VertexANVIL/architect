@@ -1,6 +1,6 @@
 import _ from 'lodash';
-import { arrayStartsWith, recursiveMerge } from './objects';
-import { ValuePath, ValuePathKey, ValuePathUtils } from './paths';
+import { arrayStartsWith, isEmptyObject, recursiveMerge } from './objects';
+import { isObjectDeepKeys, PathResultBuilder, ValuePath, ValuePathKey } from './paths';
 import { DeepPartial, Resolver, Value } from './value';
 
 const LAZY_PROXY_SYMBOL = Symbol.for('akim.architect.LazyProxy');
@@ -52,10 +52,10 @@ class LazyProxy {
         try {
           result = await root.get(path);
           if (fallback !== undefined) {
-            // we can only do this safely if we have an object
-            if (typeof fallback === 'object' && typeof fallback !== 'function') {
+            if (result !== undefined && isObjectDeepKeys(result)) {
+              // we can only do this safely if we have an object
               result = recursiveMerge(fallback, result);
-            } else if (result === undefined) {
+            } else {
               result = fallback;
             };
           };
@@ -96,11 +96,6 @@ class LazyProxy {
           return Reflect.get(target, p, receiver);
         };
 
-        if (p === 'then') {
-          // todo: when is this hit?
-          return undefined;
-        };
-
         return accessor(p);
       },
     }) as LazyAuto<T>;
@@ -131,14 +126,8 @@ export class Lazy<T> {
     this.set([], value);
   };
 
-  /**
-   * Gets the value at the specified ValuePath.
-   */
-  public async get(path: ValuePath): Promise<any> {
-    // try to get values for every component of this path
+  private matchValues(path: ValuePath): LazyValue<T>[] {
     let values: LazyValue<T>[] = [];
-
-    // match parents and push them to the list
     {
       let curr = _.clone(path);
       while (true) {
@@ -158,23 +147,26 @@ export class Lazy<T> {
 
     // sort the values by weight
     values = _.sortBy(values, v => v.weight);
+    return values;
+  };
 
+  /**
+   * Gets the value at the specified ValuePath.
+   */
+  public async get(path: ValuePath): Promise<any> {
+    const values = this.matchValues(path);
     if (values.length <= 0) {
       throw new TypeError(`no value found at path ${path.join('.')}`);
     };
 
-    let result = undefined;
+    const builder = new PathResultBuilder();
+
     for (const value of values) {
       if (value.condition) {
         let test = await value.condition();
         if ((LazyProxy.is(test) && !(await test.$resolve())) || !test) {
           continue;
         };
-      };
-
-      if (value.force) {
-        result = value.value;
-        continue;
       };
 
       let temp: T;
@@ -184,15 +176,12 @@ export class Lazy<T> {
         temp = value.value;
       };
 
-      // if we returned a lazy proxy, we need to resolve it
-      if (LazyProxy.is(temp)) {
-        result = ValuePathUtils.merge(result, _.cloneDeep(await temp.$resolve()), value.path);
-      } else {
-        result = ValuePathUtils.merge(result, _.cloneDeep(temp), value.path);
-      };
+      const resolved = _.cloneDeep(LazyProxy.is(temp) ? await temp.$resolve() : temp);
+      builder.set(value.path, resolved, value.force, value.weight);
     };
 
     // traverse into the result to get the final value
+    const result = builder.resolve();
     if (result === undefined) return result;
 
     let curr = result;
@@ -210,10 +199,12 @@ export class Lazy<T> {
   /**
    * Sets the value at the specified ValuePath.
    */
-  public set(path: ValuePath, value: Value<any>, weight: number = 0, force: boolean = false, condition?: _LazyProxy<boolean> | Condition) {
-    // Take the value and break it down into subpaths prefixed by the current path
-    // Treat empty arrays/objects as a single value
-    if (LazyProxy.is(value) || !_.isObject(value) || _.isFunction(value) || Object.entries(value).length === 0) {
+  public set(path: ValuePath, value_: Value<any>, weight: number = 0, force: boolean = false, condition?: _LazyProxy<boolean> | Condition) {
+    // if the value is a proxy, we need to create a resolver for it
+    const value = LazyProxy.is(value_) ? async () => value_ : value_;
+
+    // do not collapse object values if we're forcing the value, treat it as atomic
+    if (!isObjectDeepKeys(value) || isEmptyObject(value) || force) {
       let _condition: Condition | undefined;
       if (LazyProxy.is(condition)) {
         _condition = async () => condition.$resolve();
@@ -221,26 +212,20 @@ export class Lazy<T> {
         _condition = condition;
       };
 
-      let _value = value;
-      if (LazyProxy.is(value)) {
-        // if the value is a proxy, we need to create a resolver for it
-        _value = async () => value;
-      };
-
       this.values.push({
         condition: _condition,
         force: force,
         path: path,
-        value: _value,
+        value: value,
         weight: weight,
       });
-    } else if (!_.isArray(value)) {
-      for (const [k, v] of Object.entries(value)) {
-        this.set(path.concat(k), v, weight, force, condition);
+    } else if (_.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        this.set(path.concat(-1), value[i], weight, force, condition);
       };
     } else {
-      for (const [i, v] of value.entries()) {
-        this.set(path.concat(i), v, weight, force, condition);
+      for (const [k, v] of Object.entries(value)) {
+        this.set(path.concat(k), v, weight, force, condition);
       };
     };
   };
