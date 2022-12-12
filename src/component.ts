@@ -63,6 +63,9 @@ export abstract class Component<
     // Component is a Named
     setNamed(this);
 
+    // Configure
+    this.configure(new ConfigurationContext(target, this.props));
+
     // Run initialiser
     this.init();
   };
@@ -103,8 +106,8 @@ export abstract class Component<
   /**
    * Invoked by the target during the build phase. Sets lazy properties on other components.
    */
-  public async configure(_context: ConfigurationContext) {
-    await Promise.all(this.children.map(c => c.configure));
+  public configure(_context: ConfigurationContext) {
+    this.children.forEach(c => c.configure);
   };
 
   /**

@@ -1,10 +1,11 @@
 import _ from 'lodash';
 
 import { Component } from './component';
-import { ConfigurationContext } from './config';
 import { Registry } from './registry';
 import { ResolvedComponent, Result } from './result';
-import { asyncFilter, Condition, constructor } from './utils';
+import { asyncFilter, Condition, constructor, DeepPartial, DeepValue } from './utils';
+
+type Extract<T extends Component> = T extends Component<infer _R, infer U> ? U : never;
 
 export interface TargetParams {};
 
@@ -45,14 +46,6 @@ export class Target {
     * Invokes a build operation on all components, passing our facts
     */
   public async resolve(params: TargetResolveParams = {}): Promise<Result> {
-    // Execute per-component configuration async
-    // This allows us to figure out our enabled components
-    {
-      await Promise.all(Object.values(this.components.data).map(
-        async (v: Component) => v.configure(new ConfigurationContext(this, v.props)),
-      ));
-    };
-
     // Aggregate all enabled components
     const values: Component[] = await asyncFilter(
       Object.values(this.components.data),
@@ -94,9 +87,20 @@ export class Target {
   /**
    * Registers and enables the specified component
    */
-  public enable<T extends Component>(token: constructor<T>, name?: string, weight?: number, force?: boolean, condition?: Condition) {
+  public enable<T extends Component>(
+    token: constructor<T>,
+    config?: DeepValue<DeepPartial<Extract<T>>>,
+    name?: string,
+    weight?: number,
+    force?: boolean,
+    condition?: Condition,
+  ) {
     const result = this.component(token, name, true);
     result.props.$set({ enable: true }, weight, force, condition);
+
+    if (config !== undefined) {
+      result.props.$set(config, weight, force, condition);
+    };
   };
 
   /**

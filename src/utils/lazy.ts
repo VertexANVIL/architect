@@ -5,7 +5,7 @@ import { DeepPartial, Resolver, Value } from './value';
 
 const LAZY_PROXY_SYMBOL = Symbol.for('akim.architect.LazyProxy');
 
-interface _LazyProxy<T> {
+export interface _LazyProxy<T> {
   /**
    * The root of the Lazy tree
    */
@@ -21,7 +21,7 @@ interface _LazyProxy<T> {
     * @param fallback Default value to be merged if the value does not exist
     * @returns The result of the evaluation
     */
-  $resolve(fallback?: Partial<T>, force?: boolean): Promise<T>;
+  $resolve(fallback?: Partial<T> | null, force?: boolean): Promise<T>;
 
   // /**
   //   * Creates a reference within the context of this object
@@ -47,7 +47,7 @@ class LazyProxy {
       $__root__: root,
       $__path__: path,
 
-      $resolve: async (fallback?: Partial<T>) => {
+      $resolve: async (fallback?: Partial<T> | null) => {
         let result: any;
         try {
           result = await root.get(path);
@@ -121,6 +121,31 @@ export class Lazy<T> {
     return LazyProxy.from(instance);
   };
 
+  /**
+   * Resolves a condition to a boolean value
+   */
+  public static async resolveCondition(condition: Condition): Promise<boolean> {
+    if (LazyProxy.is(condition)) {
+      return condition.$resolve();
+    };
+
+    const resolved = await condition();
+    if (LazyProxy.is(resolved)) {
+      return resolved.$resolve();
+    } else {
+      return resolved;
+    };
+  };
+
+  /**
+   * Combines multiple conditions together into a single condition
+   */
+  public static combineConditions(...conditions: Condition[]): Condition {
+    return async () => {
+      return (await Promise.all(conditions.map(c => Lazy.resolveCondition(c)))).every(c => c);
+    };
+  }
+
   private readonly values: LazyValue<T>[] = [];
   private constructor(value: Value<T>) {
     this.set([], value);
@@ -163,14 +188,7 @@ export class Lazy<T> {
 
     for (const value of values) {
       if (value.condition) {
-        if (LazyProxy.is(value.condition)) {
-          if (!(await value.condition.$resolve())) continue;
-        } else {
-          let test = await value.condition();
-          if ((LazyProxy.is(test) && !(await test.$resolve())) || !test) {
-            continue;
-          };
-        };
+        if (!(await Lazy.resolveCondition(value.condition))) continue;
       };
 
       let temp: T;
