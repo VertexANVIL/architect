@@ -38,7 +38,7 @@ interface _LazyProxy<T> {
     * @param condition Sets the value based on a condition. If the condition evaluates to false, the value will be skipped.
     * Note that conditions that reference the value of this object will cause infinite recursion.
     */
-  $set(value: DeepLazySpec<DeepPartial<T>>, weight?: number, force?: boolean, condition?: _LazyProxy<boolean> | Condition): void;
+  $set(value: DeepLazySpec<DeepPartial<T>>, weight?: number, force?: boolean, condition?: Condition): void;
 };
 
 class LazyProxy {
@@ -163,9 +163,13 @@ export class Lazy<T> {
 
     for (const value of values) {
       if (value.condition) {
-        let test = await value.condition();
-        if ((LazyProxy.is(test) && !(await test.$resolve())) || !test) {
-          continue;
+        if (LazyProxy.is(value.condition)) {
+          if (!(await value.condition.$resolve())) continue;
+        } else {
+          let test = await value.condition();
+          if ((LazyProxy.is(test) && !(await test.$resolve())) || !test) {
+            continue;
+          };
         };
       };
 
@@ -199,21 +203,14 @@ export class Lazy<T> {
   /**
    * Sets the value at the specified ValuePath.
    */
-  public set(path: ValuePath, value_: Value<any>, weight: number = 0, force: boolean = false, condition?: _LazyProxy<boolean> | Condition) {
+  public set(path: ValuePath, value_: Value<any>, weight: number = 0, force: boolean = false, condition?: Condition) {
     // if the value is a proxy, we need to create a resolver for it
     const value = LazyProxy.is(value_) ? async () => value_ : value_;
 
     // do not collapse object values if we're forcing the value, treat it as atomic
     if (!isObjectDeepKeys(value) || isEmptyObject(value) || force) {
-      let _condition: Condition | undefined;
-      if (LazyProxy.is(condition)) {
-        _condition = async () => condition.$resolve();
-      } else {
-        _condition = condition;
-      };
-
       this.values.push({
-        condition: _condition,
+        condition: condition,
         force: force,
         path: path,
         value: value,
@@ -232,7 +229,7 @@ export class Lazy<T> {
 };
 
 //type Ref<T, K> = (v: LazyObject<T>) => Promise<K | _LazyProxy<K>>;
-export type Condition = () => Promise<boolean | LazyAuto<boolean>>;
+export type Condition = _LazyProxy<boolean> | (() => Promise<boolean | LazyAuto<boolean>>);
 
 
 type LazyRecord<T> = {

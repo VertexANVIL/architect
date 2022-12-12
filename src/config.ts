@@ -21,10 +21,10 @@ export class ConfigurationContext {
   };
 
   public enable<T extends Component>(token: constructor<T>, name?: string, weight?: number, force?: boolean) {
-    this.target.enable(token, name, weight, force, async () => this.self.enable);
+    this.target.enable(token, name, weight, force, this.self.enable);
   };
 
   public async set<T extends Component>(token: constructor<T>, value: DeepValue<DeepPartial<Extract<T>>>, weight?: number, force?: boolean) {
-    this.component<T>(token, undefined).$set(value, weight, force, async () => this.self.enable);
+    this.component<T>(token, undefined).$set(value, weight, force, this.self.enable);
   };
 };
