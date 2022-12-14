@@ -144,7 +144,7 @@ export class Lazy<T> {
     return async () => {
       return (await Promise.all(conditions.map(c => Lazy.resolveCondition(c)))).every(c => c);
     };
-  }
+  };
 
   private readonly values: LazyValue<T>[] = [];
   private constructor(value: Value<T>) {
@@ -246,9 +246,7 @@ export class Lazy<T> {
   };
 };
 
-//type Ref<T, K> = (v: LazyObject<T>) => Promise<K | _LazyProxy<K>>;
 export type Condition = _LazyProxy<boolean> | (() => Promise<boolean | LazyAuto<boolean>>);
-
 
 type LazyRecord<T> = {
   [P in keyof T]: LazyAuto<T[P]>

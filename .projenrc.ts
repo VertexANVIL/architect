@@ -12,6 +12,7 @@ const project = new typescript.TypeScriptProject({
   repository: 'https://github.com/ArctarusLimited/architect.git',
 
   projenrcTs: true,
+  releaseToNpm: true,
 
   // dependencies
   deps: [
