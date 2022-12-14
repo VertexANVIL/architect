@@ -1,4 +1,5 @@
 import { typescript } from 'projen';
+import { NpmAccess } from 'projen/lib/javascript';
 
 const project = new typescript.TypeScriptProject({
   authorName: 'Arctarus Limited',
@@ -13,6 +14,7 @@ const project = new typescript.TypeScriptProject({
 
   projenrcTs: true,
   releaseToNpm: true,
+  npmAccess: NpmAccess.PUBLIC,
 
   // dependencies
   deps: [
