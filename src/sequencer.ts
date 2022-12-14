@@ -15,7 +15,9 @@ export class Sequencer {
     const result = await fs.readdir(input);
 
     // attempt to import every result as a Target instance
-    const results = await Promise.all(result.map(async (k): Promise<[string, Target]> => {
+    const results = await Promise.all(result.map(async (k): Promise<[string, Target | null]> => {
+      if (k.endsWith('.d.ts')) return [k, null]; // ignore type definitions
+
       const stripped = k.replace(/\.[^/.]+$/, ''); // strip extension
       const file = path.join(input, stripped);
 
@@ -23,7 +25,8 @@ export class Sequencer {
       return [stripped, imported.default];
     }));
 
-    results.forEach(([k, v]) => this.targets[k] = v);
+    results.filter(([_k, v]) => v !== null)
+      .forEach(([k, v]) => this.targets[k] = v as Target);
   };
 
   /**

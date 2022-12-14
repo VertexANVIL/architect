@@ -1,5 +1,9 @@
 # Architect
 
+<p align="center">
+  <img src="https://img.shields.io/npm/v/@arctarus/architect" />
+</p>
+
 Architect is a framework for constructing very complex structured configuration trees in TypeScript. It's fast, making heavy use of async programming, and extensible. In Arctarus, it's used to define our Kubernetes clusters and the configuration for our routers.
 
 ## Philosophy
