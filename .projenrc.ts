@@ -7,7 +7,7 @@ const project = new typescript.TypeScriptProject({
   authorUrl: 'https://www.arctarus.co.uk',
 
   defaultReleaseBranch: 'main',
-  name: '@akim/architect',
+  name: '@arctarus/architect',
   license: 'MIT',
   repository: 'https://github.com/ArctarusLimited/architect.git',
 
