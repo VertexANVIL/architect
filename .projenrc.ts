@@ -21,6 +21,7 @@ const project = new typescript.TypeScriptProject({
     'appdirsjs',
     'lodash',
     'object-hash',
+    'projen',
     'semver',
     'uuid',
     'reflect-metadata',
