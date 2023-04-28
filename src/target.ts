@@ -35,7 +35,7 @@ export abstract class BaseFact<T = unknown> {
 export class Target {
   public readonly params: TargetParams;
 
-  protected readonly components = new Registry([this]);
+  public readonly components = new Registry([this]);
   protected readonly facts = new Registry();
 
   constructor(params: TargetParams = {}) {

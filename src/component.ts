@@ -34,22 +34,20 @@ export abstract class Component<
     this.target = target;
     this.parent = parent;
 
-    if (this.parent !== undefined) {
-      if (name !== undefined) {
-        throw Error('the name parameter must be left undefined when a parent is specified');
-      };
+    if (!Reflect.hasMetadata('uuid', this.constructor) && this.parent === undefined) {
+      throw Error(`${this.constructor.name}: the uuid metadata attribute must be set`);
+    };
 
-      this.name = this.parent.name;
+    if (name !== undefined) {
+      this.name = name;
+    } else if (Reflect.hasMetadata('name', this.constructor)) {
+      this.name = Reflect.getMetadata('name', this.constructor);
     } else {
-      if (!Reflect.hasMetadata('name', this.constructor) || !Reflect.hasMetadata('uuid', this.constructor)) {
-        throw Error(`${this.constructor.name}: the name and uuid metadata attributes must be set`);
-      };
-
-      // default the name to our metadata attribute
-      if (name !== undefined) {
-        this.name = name;
+      // if the name is not present and we have a parent, use the parent's name, otherwise throw
+      if (this.parent !== undefined) {
+        this.name = this.parent.name;
       } else {
-        this.name = Reflect.getMetadata('name', this.constructor);
+        throw Error(`${this.constructor.name}: the name metadata attribute must be set`);
       };
     };
 
@@ -81,15 +79,26 @@ export abstract class Component<
    * Returns the component types required by this component
    */
   public get requirements(): IComponentMatcher[] {
+    // if we have a parent, add an automatic requirement on it
+    if (this.parent !== undefined) {
+      return [new ComponentInstanceMatcher(this.parent)];
+    };
+
     return [];
   };
 
   /**
    * Adds a child by constructing it and adding it to this component
    */
-  protected addChild(child: constructor<Component>) {
+  protected addChild(child: constructor<Component>, independent = false) {
     const instance = new child(this.target, undefined, undefined, this);
-    this.children.push(instance);
+    instance.props.$set({ enable: this.props.enable });
+
+    if (independent) {
+      this.target.components.register(child, instance);
+    } else {
+      this.children.push(instance);
+    };
   };
 
   /**
@@ -170,5 +179,20 @@ export class ComponentMatcher implements IComponentMatcher {
 
   toString(): string {
     return `${this.constructor.name}(${this.token.name})`;
+  }
+};
+
+export class ComponentInstanceMatcher implements IComponentMatcher {
+  private readonly instance: Component;
+  constructor(instance: Component) {
+    this.instance = instance;
+  };
+
+  match(input: Component): boolean {
+    return input === this.instance;
+  };
+
+  toString(): string {
+    return `${this.constructor.name}(${this.instance.rid})`;
   }
 };
