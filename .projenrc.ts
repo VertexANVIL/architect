@@ -20,6 +20,7 @@ const project = new typescript.TypeScriptProject({
   deps: [
     'appdirsjs',
     'lodash',
+    'memfs',
     'object-hash',
     'projen',
     'semver',
@@ -32,6 +33,9 @@ const project = new typescript.TypeScriptProject({
   ],
 
   devDeps: [
+    'ts-jest',
+    'jest-mock',
+    '@types/jest',
     '@types/node',
     '@types/object-hash',
     '@types/lodash',

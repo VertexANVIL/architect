@@ -66,6 +66,10 @@
       "type": "build"
     },
     {
+      "name": "jest-mock",
+      "type": "build"
+    },
+    {
       "name": "npm-check-updates",
       "version": "^16",
       "type": "build"
@@ -105,6 +109,10 @@
     },
     {
       "name": "lodash",
+      "type": "runtime"
+    },
+    {
+      "name": "memfs",
       "type": "runtime"
     },
     {

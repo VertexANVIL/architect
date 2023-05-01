@@ -29,7 +29,7 @@ export abstract class BaseFact<T = unknown> {
   };
 };
 
-/**
+/*
  * Context for constructing objects.
  */
 export class Target {

@@ -13,6 +13,14 @@ interface TestOptionsA {
   blasj?: any;
 };
 
+interface RecursionTestA {
+  test?: any;
+};
+
+interface RecursionTestB {
+  test2?: any;
+};
+
 test('assignment and resolution', async () => {
   const value: TestOptionsA = {
     foobar: {
@@ -427,4 +435,35 @@ test('reading value of undefined throws', async () => {
   await expect(async () => {
     await ((lazy.foo) as any).barfoo.$resolve();
   }).rejects.toThrow('attempted to read value of undefined at foo.barfoo');
+});
+
+test('combining permutations of conditions', async () => {
+  const lazy1 = Lazy.from({ foo: true });
+  const lazy2 = Lazy.from({ foo: false });
+  const lazy3 = Lazy.from({ foo: true });
+
+  const condition1 = Lazy.combineConditions(lazy1.foo, lazy2.foo);
+  expect(await Lazy.resolveCondition(condition1)).toStrictEqual(false);
+
+  const condition2 = Lazy.combineConditions(lazy1.foo, lazy3.foo);
+  expect(await Lazy.resolveCondition(condition2)).toStrictEqual(true);
+});
+
+test('max recursion depth throws error', async () => {
+  const valueA: RecursionTestA = {};
+  const valueB: RecursionTestB = {};
+  const lazyA = Lazy.from(valueA);
+  const lazyB = Lazy.from(valueB);
+
+  lazyA.$set({
+    test: lazyB.test2,
+  });
+
+  lazyB.$set({
+    test2: lazyA.test,
+  });
+
+  await expect(async () => {
+    await lazyA.$resolve();
+  }).rejects.toThrow('Maximum evaluation depth of 100 exceeded');
 });

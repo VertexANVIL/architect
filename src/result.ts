@@ -36,9 +36,9 @@ export class Result {
    * Returns all merged configuration for this result
    */
   public get all(): any {
-    return Object.values(this.components).reduce<any[]>((prev, cur) => {
-      return recursiveMerge(prev, cur);
-    }, []);
+    return Object.values(this.components).reduce<any>((prev, cur) => {
+      return recursiveMerge(prev, cur.result);
+    }, null);
   };
 
   /**

@@ -9,4 +9,3 @@ test('no values results in undefined', async () => {
   const builder = new PathResultBuilder();
   expect(builder.resolve()).toBeUndefined();
 });
-

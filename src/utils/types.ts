@@ -1,4 +1,4 @@
-const NAMED_SYMBOL = Symbol.for('akim.architect.Named');
+export const NAMED_SYMBOL = Symbol.for('akim.architect.Named');
 
 /**
  * Constructor type, ported from tsyringe

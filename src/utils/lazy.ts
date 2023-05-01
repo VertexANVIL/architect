@@ -4,6 +4,7 @@ import { isObjectDeepKeys, PathResultBuilder, ValuePath, ValuePathKey } from './
 import { DeepPartial, Resolver, Value } from './value';
 
 const LAZY_PROXY_SYMBOL = Symbol.for('akim.architect.LazyProxy');
+const MAX_EVALUATION_DEPTH = 100;
 
 export interface _LazyProxy<T> {
   /**
@@ -21,7 +22,7 @@ export interface _LazyProxy<T> {
     * @param fallback Default value to be merged if the value does not exist
     * @returns The result of the evaluation
     */
-  $resolve(fallback?: Partial<T> | null, force?: boolean): Promise<T>;
+  $resolve(fallback?: Partial<T> | null, depth?: number): Promise<T>;
 
   // /**
   //   * Creates a reference within the context of this object
@@ -47,10 +48,15 @@ class LazyProxy {
       $__root__: root,
       $__path__: path,
 
-      $resolve: async (fallback?: Partial<T> | null) => {
+      $resolve: async (fallback?: Partial<T> | undefined, depth: number = 0) => {
+        depth += 1;
+        if (depth > MAX_EVALUATION_DEPTH) {
+          throw new Error(`Maximum evaluation depth of ${MAX_EVALUATION_DEPTH} exceeded`);
+        };
+
         let result: any;
         try {
-          result = await root.get(path);
+          result = await root.get(path, depth);
           if (fallback !== undefined) {
             if (result !== undefined && isObjectDeepKeys(result)) {
               // we can only do this safely if we have an object
@@ -124,14 +130,14 @@ export class Lazy<T> {
   /**
    * Resolves a condition to a boolean value
    */
-  public static async resolveCondition(condition: Condition): Promise<boolean> {
+  public static async resolveCondition(condition: Condition, depth: number = 0): Promise<boolean> {
     if (LazyProxy.is(condition)) {
-      return condition.$resolve();
+      return condition.$resolve(undefined, depth);
     };
 
     const resolved = await condition();
     if (LazyProxy.is(resolved)) {
-      return resolved.$resolve();
+      return resolved.$resolve(undefined, depth);
     } else {
       return resolved;
     };
@@ -178,7 +184,7 @@ export class Lazy<T> {
   /**
    * Gets the value at the specified ValuePath.
    */
-  public async get(path: ValuePath): Promise<any> {
+  public async get(path: ValuePath, depth: number): Promise<any> {
     const values = this.matchValues(path);
     if (values.length <= 0) {
       throw new TypeError(`no value found at path ${path.join('.')}`);
@@ -188,7 +194,7 @@ export class Lazy<T> {
 
     for (const value of values) {
       if (value.condition) {
-        if (!(await Lazy.resolveCondition(value.condition))) continue;
+        if (!(await Lazy.resolveCondition(value.condition, depth))) continue;
       };
 
       let temp: T;
@@ -198,7 +204,7 @@ export class Lazy<T> {
         temp = value.value;
       };
 
-      const resolved = _.cloneDeep(LazyProxy.is(temp) ? await temp.$resolve() : temp);
+      const resolved = _.cloneDeep(LazyProxy.is(temp) ? await temp.$resolve(undefined, depth) : temp);
       builder.set(value.path, resolved, value.force, value.weight);
     };
 

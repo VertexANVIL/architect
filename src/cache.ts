@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'path';
 
-import { appdir } from './utils';
+import { StateProvider, defaultState } from './utils';
 
 /**
  * Target cache that caches the result of build inputs
@@ -9,8 +9,8 @@ import { appdir } from './utils';
 export class TargetCache {
   readonly dir: string;
 
-  constructor() {
-    this.dir = appdir.cache;
+  constructor(state: StateProvider) {
+    this.dir = state.dirs.cache;
   };
 
   public async get(ns: string, key: string): Promise<Uint8Array | null> {
@@ -36,4 +36,4 @@ export class TargetCache {
   };
 };
 
-export const cache = new TargetCache();
+export const cache = new TargetCache(defaultState);

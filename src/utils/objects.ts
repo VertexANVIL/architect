@@ -42,6 +42,9 @@ export function arrayStartsWith<T>(array: T[], prefix: T[]): boolean {
  * Recursively merges the following objects, properly handling array values
  */
 export function recursiveMerge(object: any, source: any): any {
+  // if the types don't match, just return the source
+  if (object === null || object.constructor !== source.constructor) return source;
+
   if (_.isArray(object)) {
     return object.concat(source);
   };
@@ -67,6 +70,9 @@ export function recursiveMergeThese<T>(source: T[]): T {
   }, undefined as any);
 };
 
+/**
+ * Tests whether a value is not null or undefined
+ */
 export function notEmpty<TValue>(value: TValue | null | undefined): value is TValue {
   if (value === null || value === undefined) return false;
   return true;
@@ -76,8 +82,7 @@ export function notEmpty<TValue>(value: TValue | null | undefined): value is TVa
  * Returns whether the specified object is either an empty object or an empty array
  */
 export function isEmptyObject(obj: any): boolean {
-  if (obj === undefined || obj === null) return true;
-
+  if (!notEmpty(obj)) return true;
   if (_.isArray(obj)) return obj.length === 0;
   return Object.keys(obj).length === 0;
 };
