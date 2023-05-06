@@ -5,10 +5,6 @@
       "type": "build"
     },
     {
-      "name": "@types/js-yaml",
-      "type": "build"
-    },
-    {
       "name": "@types/lodash",
       "type": "build"
     },
@@ -97,6 +93,11 @@
     },
     {
       "name": "appdirsjs",
+      "type": "runtime"
+    },
+    {
+      "name": "commander",
+      "version": "10.0.1",
       "type": "runtime"
     },
     {

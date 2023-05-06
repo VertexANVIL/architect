@@ -1,3 +1,4 @@
+export * from './cli';
 export * from './utils';
 export { cache } from './cache';
 export { Component, ComponentArgs, ComponentMatcher, IComponentMatcher } from './component';

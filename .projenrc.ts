@@ -19,6 +19,7 @@ const project = new typescript.TypeScriptProject({
   // dependencies
   deps: [
     'appdirsjs',
+    'commander@10.0.1',
     'lodash',
     'memfs',
     'object-hash',
@@ -41,7 +42,6 @@ const project = new typescript.TypeScriptProject({
     '@types/lodash',
     '@types/uuid',
     '@types/semver',
-    '@types/js-yaml',
   ],
 });
 
